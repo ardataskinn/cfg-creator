@@ -264,6 +264,82 @@
       transition: background-color 160ms ease, color 160ms ease;
     }
 
+    .popular-grammars {
+      display: grid;
+      gap: 6px;
+    }
+
+    .popular-toggle {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 13px 14px;
+      color: var(--on-surface-variant);
+      background: transparent;
+      border: 0;
+      border-radius: 12px;
+      font-size: 15px;
+      text-align: left;
+      transition: background-color 160ms ease, color 160ms ease;
+    }
+
+    .popular-toggle:hover,
+    .popular-toggle[aria-expanded="true"] {
+      background: var(--secondary-container);
+      color: #38485d;
+      font-weight: 700;
+    }
+
+    .popular-toggle .chevron {
+      margin-left: auto;
+      transition: transform 160ms ease;
+    }
+
+    .popular-toggle[aria-expanded="true"] .chevron {
+      transform: rotate(180deg);
+    }
+
+    .popular-list {
+      display: none;
+      gap: 8px;
+      padding: 4px 6px 8px 34px;
+    }
+
+    .popular-list.open {
+      display: grid;
+    }
+
+    .preset-button {
+      display: grid;
+      gap: 3px;
+      width: 100%;
+      padding: 10px 12px;
+      color: var(--on-surface);
+      background: var(--surface-lowest);
+      border: 1px solid var(--outline-variant);
+      border-radius: 10px;
+      text-align: left;
+      transition: border-color 160ms ease, background-color 160ms ease, transform 160ms ease;
+    }
+
+    .preset-button:hover {
+      background: var(--surface-container);
+      border-color: var(--primary);
+      transform: translateX(2px);
+    }
+
+    .preset-name {
+      font-weight: 800;
+      font-size: 13px;
+    }
+
+    .preset-rule {
+      color: var(--secondary);
+      font-family: "JetBrains Mono", monospace;
+      font-size: 12px;
+    }
+
     .side-nav a:hover,
     .side-nav a.active {
       background: var(--secondary-container);
@@ -916,6 +992,35 @@
       <nav class="side-nav" aria-label="Sayfa bölümleri">
         <a href="#tanim"><span class="material-symbols-outlined" aria-hidden="true">menu_book</span>Biçimsel Tanım</a>
         <a class="active" href="#kurallar"><span class="material-symbols-outlined" aria-hidden="true">reorder</span>Üretim Kuralları</a>
+        <div class="popular-grammars">
+          <button class="popular-toggle" id="popularToggle" type="button" aria-expanded="false" aria-controls="popularList">
+            <span class="material-symbols-outlined" aria-hidden="true">auto_awesome</span>
+            Popüler Gramerler
+            <span class="material-symbols-outlined chevron" aria-hidden="true">expand_more</span>
+          </button>
+          <div class="popular-list" id="popularList">
+            <button class="preset-button" type="button" data-preset="anbn">
+              <span class="preset-name">aⁿbⁿ</span>
+              <span class="preset-rule">S → aSb | ε</span>
+            </button>
+            <button class="preset-button" type="button" data-preset="parentheses">
+              <span class="preset-name">Dengeli Parantezler</span>
+              <span class="preset-rule">S → (S)S | ε</span>
+            </button>
+            <button class="preset-button" type="button" data-preset="palindrome">
+              <span class="preset-name">Palindromlar</span>
+              <span class="preset-rule">S → aSa | bSb | a | b | ε</span>
+            </button>
+            <button class="preset-button" type="button" data-preset="equalab">
+              <span class="preset-name">Eşit a ve b</span>
+              <span class="preset-rule">S → aSbS | bSaS | ε</span>
+            </button>
+            <button class="preset-button" type="button" data-preset="anbmcm">
+              <span class="preset-name">a*bⁿcⁿ</span>
+              <span class="preset-rule">S → aS | T, T → bTc | ε</span>
+            </button>
+          </div>
+        </div>
         <a href="#dogrulama"><span class="material-symbols-outlined" aria-hidden="true">verified</span>Kelime Doğrulayıcı</a>
         <a href="#agac"><span class="material-symbols-outlined" aria-hidden="true">account_tree</span>Türetme Ağacı</a>
         <a href="#bilgi"><span class="material-symbols-outlined" aria-hidden="true">info</span>Eğitici Bilgi</a>
@@ -1032,6 +1137,32 @@
       { left: "S", rights: ["aSb", "ε"] }
     ];
 
+    const grammarPresets = {
+      anbn: {
+        rules: [{ left: "S", rights: ["aSb", "ε"] }],
+        sample: "aabb"
+      },
+      parentheses: {
+        rules: [{ left: "S", rights: ["(S)S", "ε"] }],
+        sample: "(())"
+      },
+      palindrome: {
+        rules: [{ left: "S", rights: ["aSa", "bSb", "a", "b", "ε"] }],
+        sample: "abba"
+      },
+      equalab: {
+        rules: [{ left: "S", rights: ["aSbS", "bSaS", "ε"] }],
+        sample: "abab"
+      },
+      anbmcm: {
+        rules: [
+          { left: "S", rights: ["aS", "T"] },
+          { left: "T", rights: ["bTc", "ε"] }
+        ],
+        sample: "abbcc"
+      }
+    };
+
     const colorsByLength = [
       "#525657",
       "#004ac6",
@@ -1060,6 +1191,9 @@
     const startSymbol = document.getElementById("startSymbol");
     const treeCanvas = document.getElementById("treeCanvas");
     const newGrammarButton = document.getElementById("newGrammar");
+    const popularToggle = document.getElementById("popularToggle");
+    const popularList = document.getElementById("popularList");
+    const presetButtons = document.querySelectorAll("[data-preset]");
 
     let rules = cloneRules(defaultRules);
     let generationResult = null;
@@ -1411,6 +1545,14 @@
       renderValidation();
     }
 
+    function loadPresetGrammar(preset) {
+      rules = cloneRules(preset.rules);
+      wordInput.value = preset.sample;
+      currentMaxLength = 5;
+      updateAll();
+      document.getElementById("kurallar").scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+
     function escapeHtml(value) {
       return String(value)
         .replace(/&/g, "&amp;")
@@ -1456,6 +1598,21 @@
       currentMaxLength += 5;
       renderGeneratedWords();
       renderValidation();
+    });
+
+    popularToggle.addEventListener("click", () => {
+      const isOpen = popularToggle.getAttribute("aria-expanded") === "true";
+      popularToggle.setAttribute("aria-expanded", String(!isOpen));
+      popularList.classList.toggle("open", !isOpen);
+    });
+
+    presetButtons.forEach((button) => {
+      button.addEventListener("click", () => {
+        const preset = grammarPresets[button.dataset.preset];
+        if (preset) {
+          loadPresetGrammar(preset);
+        }
+      });
     });
 
     newGrammarButton.addEventListener("click", () => {
