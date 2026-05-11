@@ -1,0 +1,1475 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CFG Oluşturucu ve Analiz Aracı</title>
+  <meta name="description" content="Arda Taşkın tarafından hazırlanan Türkçe CFG oluşturucu, bağlamdan bağımsız gramer analiz aracı, kelime üretici ve türetme ağacı uygulaması.">
+  <meta name="author" content="Arda Taşkın">
+  <meta name="keywords" content="Arda Taşkın, arda taşkın, Arda Taşkın Yazılım, CFG oluşturucu, context free grammar, bağlamdan bağımsız gramer, türetme ağacı">
+  <meta name="robots" content="index, follow">
+  <meta property="og:title" content="CFG Oluşturucu - Arda Taşkın">
+  <meta property="og:description" content="Arda Taşkın tarafından hazırlanan Türkçe CFG oluşturucu ve analiz aracı.">
+  <meta property="og:type" content="website">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="CFG Oluşturucu - Arda Taşkın">
+  <meta name="twitter:description" content="Türkçe CFG oluşturucu, kelime üretici ve türetme ağacı aracı.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&family=Manrope:wght@600;700;800&family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --surface: #faf8ff;
+      --surface-lowest: #ffffff;
+      --surface-low: #f2f3ff;
+      --surface-container: #eaedff;
+      --surface-high: #e2e7ff;
+      --surface-highest: #dae2fd;
+      --on-surface: #131b2e;
+      --on-surface-variant: #434655;
+      --inverse-surface: #283044;
+      --inverse-on-surface: #eef0ff;
+      --outline: #737686;
+      --outline-variant: #c3c6d7;
+      --primary: #004ac6;
+      --primary-action: #2563eb;
+      --primary-fixed: #dbe1ff;
+      --secondary: #505f76;
+      --secondary-container: #d0e1fb;
+      --green: #137333;
+      --green-bg: #e6f4ea;
+      --red: #ba1a1a;
+      --red-bg: #ffdad6;
+      --shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--surface);
+      color: var(--on-surface);
+      font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    button,
+    input {
+      font: inherit;
+    }
+
+    button {
+      cursor: pointer;
+    }
+
+    a {
+      color: inherit;
+      text-decoration: none;
+    }
+
+    code,
+    .mono {
+      font-family: "JetBrains Mono", monospace;
+    }
+
+    .material-symbols-outlined {
+      font-family: "Material Symbols Outlined";
+      font-weight: normal;
+      font-style: normal;
+      font-size: 22px;
+      line-height: 1;
+      letter-spacing: normal;
+      text-transform: none;
+      display: inline-block;
+      white-space: nowrap;
+      word-wrap: normal;
+      direction: ltr;
+      font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 24;
+      font-feature-settings: "liga";
+      -webkit-font-feature-settings: "liga";
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      height: 84px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 24px;
+      padding: 0 40px;
+      background: var(--surface-low);
+      border-bottom: 1px solid rgba(195, 198, 215, 0.65);
+      box-shadow: 0 1px 8px rgba(15, 23, 42, 0.04);
+    }
+
+    .brand-group,
+    .top-actions {
+      display: flex;
+      align-items: center;
+      gap: 24px;
+    }
+
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      background: var(--inverse-surface);
+      border-radius: 12px;
+      font-family: "Manrope", sans-serif;
+      font-size: 30px;
+      font-weight: 800;
+      line-height: 36px;
+      letter-spacing: -0.02em;
+    }
+
+    .brand-cfg {
+      color: var(--primary-action);
+      font-weight: 800;
+    }
+
+    .brand-word {
+      color: #ffffff;
+      font-weight: 700;
+    }
+
+    .topnav-link {
+      padding: 8px 0;
+      color: var(--primary);
+      border-bottom: 2px solid var(--primary);
+      font-family: "Manrope", sans-serif;
+      font-size: 24px;
+      font-weight: 700;
+      line-height: 32px;
+      letter-spacing: -0.01em;
+    }
+
+    .icon-button {
+      width: 40px;
+      height: 40px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--primary);
+      border-radius: 999px;
+      transition: background-color 160ms ease, transform 160ms ease;
+    }
+
+    .icon-button:hover {
+      background: var(--surface-highest);
+      transform: translateY(-1px);
+    }
+
+    .icon-button svg {
+      width: 22px;
+      height: 22px;
+      fill: currentColor;
+    }
+
+    .app-shell {
+      display: grid;
+      grid-template-columns: 320px minmax(0, 1fr);
+      min-height: calc(100vh - 84px);
+    }
+
+    .sidebar {
+      position: sticky;
+      top: 84px;
+      height: calc(100vh - 84px);
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+      padding: 28px 20px;
+      background: var(--surface-low);
+      border-right: 1px solid var(--outline-variant);
+    }
+
+    .primary-action,
+    .primary-button,
+    .secondary-button {
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      transition: background-color 160ms ease, transform 160ms ease;
+    }
+
+    .primary-action,
+    .primary-button {
+      border: 0;
+      background: var(--primary);
+      color: #ffffff;
+      box-shadow: var(--shadow);
+    }
+
+    .primary-action {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 14px 18px;
+      margin: 0 12px 8px;
+    }
+
+    .primary-button {
+      padding: 14px 26px;
+    }
+
+    .primary-action:hover,
+    .primary-button:hover {
+      background: #003ea8;
+      transform: translateY(-1px);
+    }
+
+    .secondary-button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 11px 16px;
+      color: var(--on-surface);
+      background: var(--surface-container);
+      border: 1px solid var(--outline-variant);
+    }
+
+    .secondary-button:hover {
+      background: var(--surface-high);
+    }
+
+    .side-nav {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      padding: 0 8px;
+    }
+
+    .side-nav a {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 13px 14px;
+      color: var(--on-surface-variant);
+      border-radius: 12px;
+      font-size: 15px;
+      transition: background-color 160ms ease, color 160ms ease;
+    }
+
+    .side-nav a:hover,
+    .side-nav a.active {
+      background: var(--secondary-container);
+      color: #38485d;
+      font-weight: 700;
+    }
+
+    .creator-card {
+      margin-top: auto;
+      padding: 18px;
+      background: var(--surface-lowest);
+      border: 1px solid var(--outline-variant);
+      border-radius: 12px;
+    }
+
+    .creator-card p {
+      margin: 0 0 4px;
+      color: var(--secondary);
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+
+    .creator-card strong {
+      font-family: "Manrope", sans-serif;
+    }
+
+    .creator-links {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 14px;
+    }
+
+    .creator-links a {
+      padding: 6px 9px;
+      color: var(--primary);
+      background: var(--primary-fixed);
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .workspace {
+      min-width: 0;
+      padding: 32px;
+      overflow: auto;
+    }
+
+    .workspace-grid {
+      width: min(1280px, 100%);
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 360px;
+      gap: 28px;
+      margin: 0 auto;
+    }
+
+    .main-column,
+    .info-column {
+      display: grid;
+      align-content: start;
+      gap: 24px;
+    }
+
+    .panel,
+    .definition-card {
+      background: var(--surface-lowest);
+      border: 1px solid var(--outline-variant);
+      border-radius: 12px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      min-height: 72px;
+      padding: 18px 24px;
+      background: var(--surface-container);
+      border-bottom: 1px solid var(--outline-variant);
+    }
+
+    .panel-header.compact {
+      min-height: 58px;
+      padding: 14px 18px;
+    }
+
+    .panel-header h2,
+    .definition-card h2,
+    .info-title h2 {
+      margin: 0;
+      color: var(--on-surface);
+      font-family: "Manrope", sans-serif;
+      font-size: 24px;
+      font-weight: 700;
+      line-height: 32px;
+      letter-spacing: -0.01em;
+    }
+
+    .panel-header h2 {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .panel-body {
+      padding: 24px;
+    }
+
+    .rule-list {
+      min-height: 102px;
+      padding: 16px;
+      background: var(--surface-low);
+      border-left: 3px solid var(--primary);
+      border-radius: 8px;
+      font-family: "JetBrains Mono", monospace;
+      font-size: 14px;
+    }
+
+    .rule-row {
+      display: grid;
+      grid-template-columns: 34px minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 12px;
+      padding: 9px 0;
+      border-bottom: 1px solid rgba(195, 198, 215, 0.75);
+    }
+
+    .rule-row:last-child {
+      border-bottom: 0;
+    }
+
+    .rule-number {
+      color: var(--secondary);
+      text-align: right;
+    }
+
+    .rule-expression {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      min-width: 0;
+    }
+
+    .rule-expression strong {
+      color: var(--primary);
+    }
+
+    .delete-rule {
+      width: 32px;
+      height: 32px;
+      display: grid;
+      place-items: center;
+      color: var(--secondary);
+      background: transparent;
+      border: 0;
+      border-radius: 6px;
+    }
+
+    .delete-rule:hover {
+      color: var(--red);
+      background: var(--red-bg);
+    }
+
+    .empty-state {
+      color: var(--secondary);
+      font-family: "Inter", sans-serif;
+    }
+
+    .rule-form {
+      display: grid;
+      grid-template-columns: 160px auto minmax(220px, 1fr) auto;
+      align-items: center;
+      gap: 12px;
+      margin-top: 18px;
+    }
+
+    input[type="text"] {
+      width: 100%;
+      padding: 13px 14px;
+      color: var(--on-surface);
+      background: var(--surface-lowest);
+      border: 1px solid var(--outline-variant);
+      border-radius: 8px;
+      font-family: "JetBrains Mono", monospace;
+      font-size: 14px;
+      outline: 0;
+      transition: border-color 160ms ease, box-shadow 160ms ease;
+    }
+
+    input[type="text"]:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(0, 74, 198, 0.14);
+    }
+
+    .arrow {
+      color: var(--secondary);
+    }
+
+    .hint {
+      margin: 12px 0 0;
+      color: var(--secondary);
+      font-size: 13px;
+    }
+
+    .validator-form {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+
+    .validator-input-wrap {
+      position: relative;
+    }
+
+    .validator-input-wrap input {
+      padding-right: 104px;
+      min-height: 53px;
+      background: var(--surface);
+      font-size: 16px;
+    }
+
+    .state-chip {
+      position: absolute;
+      right: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      padding: 5px 8px;
+      border-radius: 5px;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .state-chip.valid {
+      color: var(--green);
+      background: var(--green-bg);
+      border: 1px solid #ceead6;
+    }
+
+    .state-chip.invalid {
+      color: var(--red);
+      background: var(--red-bg);
+      border: 1px solid #f6b8b2;
+    }
+
+    .steps-box {
+      padding: 16px;
+      background: var(--surface-low);
+      border: 1px solid var(--outline-variant);
+      border-radius: 10px;
+    }
+
+    .steps-box h3 {
+      margin: 0 0 14px;
+      padding-bottom: 12px;
+      color: var(--secondary);
+      border-bottom: 1px solid var(--outline-variant);
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    .derivation-steps {
+      display: grid;
+      gap: 8px;
+      font-family: "JetBrains Mono", monospace;
+      font-size: 14px;
+    }
+
+    .step-row {
+      display: grid;
+      grid-template-columns: 72px minmax(0, 1fr);
+      gap: 10px;
+      align-items: start;
+      padding: 10px;
+      border-radius: 8px;
+    }
+
+    .step-row.active {
+      background: var(--surface-highest);
+      border-left: 3px solid var(--primary);
+    }
+
+    .step-label {
+      color: var(--secondary);
+      font-size: 13px;
+    }
+
+    .step-word {
+      color: var(--on-surface);
+      font-weight: 700;
+      overflow-wrap: anywhere;
+    }
+
+    .step-note {
+      display: block;
+      margin-top: 2px;
+      color: var(--secondary);
+      font-family: "Inter", sans-serif;
+      font-size: 12px;
+      font-weight: 500;
+    }
+
+    .step-final {
+      color: var(--green);
+    }
+
+    .definition-card {
+      position: relative;
+      padding: 24px;
+      color: var(--inverse-on-surface);
+      background: var(--inverse-surface);
+    }
+
+    .definition-card h2 {
+      color: #ffffff;
+      margin-bottom: 18px;
+    }
+
+    .watermark {
+      position: absolute;
+      top: 12px;
+      right: 14px;
+      color: #ffffff;
+      font-size: 88px;
+      opacity: 0.08;
+    }
+
+    .definition-list {
+      position: relative;
+      z-index: 1;
+      display: grid;
+      gap: 12px;
+      margin: 0;
+      font-family: "JetBrains Mono", monospace;
+      font-size: 14px;
+    }
+
+    .definition-list div {
+      display: grid;
+      grid-template-columns: 32px minmax(0, 1fr);
+      align-items: baseline;
+      gap: 10px;
+    }
+
+    .definition-list div:first-child {
+      padding-bottom: 12px;
+      border-bottom: 1px solid rgba(238, 240, 255, 0.22);
+    }
+
+    .definition-list dt {
+      color: #b4c5ff;
+      font-weight: 800;
+    }
+
+    .definition-list dd {
+      margin: 0;
+      overflow-wrap: anywhere;
+    }
+
+    .generated-panel {
+      max-height: 410px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .length-control {
+      padding: 5px 8px;
+      background: var(--surface-highest);
+      border-radius: 6px;
+      color: var(--on-surface);
+      font-family: "JetBrains Mono", monospace;
+      font-size: 12px;
+    }
+
+    .generated-actions {
+      padding: 12px 18px 0;
+      background: var(--surface);
+    }
+
+    .generated-actions .secondary-button {
+      width: 100%;
+    }
+
+    .generated-list {
+      flex: 1;
+      min-height: 214px;
+      overflow: auto;
+      padding: 14px 18px 18px;
+      background: var(--surface);
+      font-family: "JetBrains Mono", monospace;
+      font-size: 14px;
+    }
+
+    .generated-group {
+      margin-bottom: 14px;
+      padding: 10px;
+      border-left: 4px solid var(--group-color);
+      border-radius: 8px;
+      background: color-mix(in srgb, var(--group-color) 11%, white);
+    }
+
+    .generated-group h3 {
+      margin: 0 0 8px;
+      color: var(--group-color);
+      font-family: "Inter", sans-serif;
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+
+    .generated-word {
+      display: inline-flex;
+      margin: 3px 5px 3px 0;
+      padding: 5px 8px;
+      background: rgba(255, 255, 255, 0.78);
+      border: 1px solid rgba(115, 118, 134, 0.22);
+      border-radius: 7px;
+    }
+
+    .info-card {
+      padding: 22px;
+      background: var(--surface-container);
+    }
+
+    .info-title {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 10px;
+    }
+
+    .info-title .material-symbols-outlined {
+      padding: 7px;
+      color: var(--primary);
+      background: var(--primary-fixed);
+      border-radius: 9px;
+    }
+
+    .info-card p {
+      margin: 0 0 16px;
+      color: var(--on-surface-variant);
+      font-size: 14px;
+      line-height: 1.65;
+    }
+
+    .learn-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--primary);
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+
+    .learn-link:hover {
+      text-decoration: underline;
+    }
+
+    .tree-canvas {
+      min-height: 260px;
+      overflow: auto;
+      padding: 20px;
+      background:
+        linear-gradient(rgba(195, 198, 215, 0.26) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(195, 198, 215, 0.26) 1px, transparent 1px),
+        var(--surface-low);
+      background-size: 28px 28px;
+      border: 1px solid var(--outline-variant);
+      border-radius: 10px;
+    }
+
+    .tree {
+      display: flex;
+      justify-content: center;
+      min-width: max-content;
+      font-family: "JetBrains Mono", monospace;
+    }
+
+    .tree ul {
+      position: relative;
+      display: flex;
+      justify-content: center;
+      gap: 16px;
+      margin: 0;
+      padding: 36px 0 0;
+      list-style: none;
+    }
+
+    .tree li {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .tree li::before {
+      content: "";
+      position: absolute;
+      top: -36px;
+      left: 50%;
+      width: 1px;
+      height: 36px;
+      background: var(--outline-variant);
+    }
+
+    .tree > ul > li::before {
+      display: none;
+    }
+
+    .tree-node {
+      min-width: 38px;
+      padding: 8px 10px;
+      color: var(--on-surface);
+      background: var(--surface-lowest);
+      border: 1px solid var(--outline-variant);
+      border-radius: 9px;
+      box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06);
+      text-align: center;
+    }
+
+    .tree-node.variable {
+      color: #ffffff;
+      background: var(--primary);
+      border-color: var(--primary);
+      font-weight: 800;
+    }
+
+    .tree-node.epsilon {
+      color: var(--secondary);
+      background: var(--surface-high);
+      font-style: italic;
+    }
+
+    @media (max-width: 1180px) {
+      .app-shell {
+        grid-template-columns: 1fr;
+      }
+
+      .sidebar {
+        position: static;
+        height: auto;
+        border-right: 0;
+        border-bottom: 1px solid var(--outline-variant);
+      }
+
+      .side-nav {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+      }
+
+      .creator-card {
+        margin-top: 0;
+      }
+
+      .workspace-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 760px) {
+      .topbar {
+        height: auto;
+        flex-direction: column;
+        align-items: flex-start;
+        padding: 18px;
+      }
+
+      .brand-group {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 6px;
+      }
+
+      .brand {
+        font-size: 25px;
+      }
+
+      .topnav-link {
+        font-size: 19px;
+      }
+
+      .workspace {
+        padding: 18px;
+      }
+
+      .panel-header,
+      .panel-body {
+        padding-left: 16px;
+        padding-right: 16px;
+      }
+
+      .rule-form,
+      .validator-form {
+        grid-template-columns: 1fr;
+      }
+
+      .rule-form .arrow {
+        display: none;
+      }
+
+      .primary-button,
+      .secondary-button {
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand-group">
+      <a class="brand" href="#" aria-label="CFG Oluşturucu ana sayfa">
+        <span class="brand-cfg">CFG</span>
+        <span class="brand-word">Oluşturucu</span>
+      </a>
+    </div>
+    <div class="top-actions" aria-label="Sosyal bağlantılar">
+      <a class="icon-button" href="https://github.com/ardataskin" target="_blank" rel="noreferrer" aria-label="GitHub profili">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 .5a12 12 0 0 0-3.79 23.39c.6.11.82-.26.82-.58v-2.03c-3.34.73-4.04-1.41-4.04-1.41-.55-1.38-1.33-1.75-1.33-1.75-1.09-.74.08-.73.08-.73 1.2.09 1.84 1.24 1.84 1.24 1.07 1.83 2.8 1.3 3.49.99.11-.78.42-1.3.76-1.6-2.67-.3-5.47-1.33-5.47-5.92 0-1.31.47-2.38 1.24-3.22-.13-.3-.54-1.52.11-3.18 0 0 1.01-.32 3.3 1.23A11.4 11.4 0 0 1 12 6.03c1.02 0 2.05.14 3.01.4 2.29-1.55 3.3-1.23 3.3-1.23.65 1.66.24 2.88.12 3.18.77.84 1.23 1.91 1.23 3.22 0 4.6-2.81 5.62-5.48 5.91.43.38.81 1.1.81 2.23v3.31c0 .32.21.7.82.58A12 12 0 0 0 12 .5Z"/></svg>
+      </a>
+      <a class="icon-button" href="https://www.youtube.com/@ardataskinyazilim" target="_blank" rel="noreferrer" aria-label="YouTube kanalı">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M23.5 6.2a3 3 0 0 0-2.11-2.12C19.52 3.58 12 3.58 12 3.58s-7.52 0-9.39.5A3 3 0 0 0 .5 6.2 31.3 31.3 0 0 0 0 12a31.3 31.3 0 0 0 .5 5.8 3 3 0 0 0 2.11 2.12c1.87.5 9.39.5 9.39.5s7.52 0 9.39-.5a3 3 0 0 0 2.11-2.12A31.3 31.3 0 0 0 24 12a31.3 31.3 0 0 0-.5-5.8ZM9.6 15.57V8.43L15.86 12 9.6 15.57Z"/></svg>
+      </a>
+      <a class="icon-button" href="https://www.instagram.com/ardataskin00" target="_blank" rel="noreferrer" aria-label="Instagram profili">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7.8 2h8.4A5.8 5.8 0 0 1 22 7.8v8.4a5.8 5.8 0 0 1-5.8 5.8H7.8A5.8 5.8 0 0 1 2 16.2V7.8A5.8 5.8 0 0 1 7.8 2Zm0 2A3.8 3.8 0 0 0 4 7.8v8.4A3.8 3.8 0 0 0 7.8 20h8.4a3.8 3.8 0 0 0 3.8-3.8V7.8A3.8 3.8 0 0 0 16.2 4H7.8Zm9.05 2.1a1.05 1.05 0 1 1 0 2.1 1.05 1.05 0 0 1 0-2.1ZM12 7.35A4.65 4.65 0 1 1 12 16.65 4.65 4.65 0 0 1 12 7.35Zm0 2A2.65 2.65 0 1 0 12 14.65 2.65 2.65 0 0 0 12 9.35Z"/></svg>
+      </a>
+      <a class="icon-button" href="https://medium.com/@ardataskinofficiall" target="_blank" rel="noreferrer" aria-label="Medium sayfası">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13.54 12c0 3.51-2.83 6.36-6.32 6.36S.9 15.51.9 12s2.83-6.36 6.32-6.36 6.32 2.85 6.32 6.36Zm6.93 0c0 3.3-1.42 5.98-3.17 5.98S14.13 15.3 14.13 12s1.42-5.98 3.17-5.98 3.17 2.68 3.17 5.98Zm2.84 0c0 2.96-.5 5.36-1.13 5.36-.62 0-1.13-2.4-1.13-5.36s.51-5.36 1.13-5.36c.63 0 1.13 2.4 1.13 5.36Z"/></svg>
+      </a>
+    </div>
+  </header>
+
+  <div class="app-shell">
+    <aside class="sidebar">
+      <button class="primary-action" id="newGrammar" type="button">
+        <span class="material-symbols-outlined" aria-hidden="true">add</span>
+        Yeni Gramer
+      </button>
+
+      <nav class="side-nav" aria-label="Sayfa bölümleri">
+        <a href="#tanim"><span class="material-symbols-outlined" aria-hidden="true">menu_book</span>Biçimsel Tanım</a>
+        <a class="active" href="#kurallar"><span class="material-symbols-outlined" aria-hidden="true">reorder</span>Üretim Kuralları</a>
+        <a href="#dogrulama"><span class="material-symbols-outlined" aria-hidden="true">verified</span>Kelime Doğrulayıcı</a>
+        <a href="#agac"><span class="material-symbols-outlined" aria-hidden="true">account_tree</span>Türetme Ağacı</a>
+        <a href="#bilgi"><span class="material-symbols-outlined" aria-hidden="true">info</span>Eğitici Bilgi</a>
+      </nav>
+
+      <div class="creator-card">
+        <p>Hazırlayan</p>
+        <strong>Arda Taşkın Yazılım</strong>
+        <div class="creator-links">
+          <a href="https://github.com/ardataskin" target="_blank" rel="noreferrer">GitHub</a>
+          <a href="https://www.youtube.com/@ardataskinyazilim" target="_blank" rel="noreferrer">YouTube</a>
+          <a href="https://www.instagram.com/ardataskin00" target="_blank" rel="noreferrer">Instagram</a>
+          <a href="https://medium.com/@ardataskinofficiall" target="_blank" rel="noreferrer">Medium</a>
+        </div>
+      </div>
+    </aside>
+
+    <main class="workspace">
+      <div class="workspace-grid">
+        <section class="main-column">
+          <article class="panel" id="kurallar">
+            <div class="panel-header">
+              <h2>Üretim Kuralları</h2>
+              <span class="material-symbols-outlined" aria-hidden="true">more_vert</span>
+            </div>
+            <div class="panel-body">
+              <div class="rule-list" id="ruleList" aria-live="polite"></div>
+
+              <form class="rule-form" id="ruleForm">
+                <input id="nonTerminalInput" type="text" maxlength="1" placeholder="Değişken (örn. S)" autocomplete="off" aria-label="Değişken">
+                <span class="material-symbols-outlined arrow" aria-hidden="true">arrow_right_alt</span>
+                <input id="productionInput" type="text" placeholder="Üretim (örn. aSb | E)" autocomplete="off" aria-label="Üretim">
+                <button class="secondary-button" type="submit">
+                  <span class="material-symbols-outlined" aria-hidden="true">add</span>
+                  Kural Ekle
+                </button>
+              </form>
+              <p class="hint">Alternatifler için <code>|</code>, boş kelime için <code>ε</code> veya <code>E</code> yazabilirsin.</p>
+            </div>
+          </article>
+
+          <article class="panel" id="dogrulama">
+            <div class="panel-header">
+              <h2><span class="material-symbols-outlined" aria-hidden="true">fact_check</span> Kelime Doğrulayıcı</h2>
+            </div>
+            <div class="panel-body">
+              <form class="validator-form" id="validatorForm">
+                <div class="validator-input-wrap">
+                  <input id="wordInput" type="text" value="aabb" placeholder="Kontrol edilecek kelime..." autocomplete="off" aria-label="Kontrol edilecek kelime">
+                  <span class="state-chip valid" id="validationChip">Geçerli</span>
+                </div>
+                <button class="primary-button" type="submit">Doğrula</button>
+              </form>
+
+              <div class="steps-box">
+                <h3>Türetme Adımları</h3>
+                <div class="derivation-steps" id="derivationSteps"></div>
+              </div>
+            </div>
+          </article>
+
+          <article class="panel" id="agac">
+            <div class="panel-header">
+              <h2><span class="material-symbols-outlined" aria-hidden="true">account_tree</span> Türetme Ağacı</h2>
+            </div>
+            <div class="panel-body">
+              <div class="tree-canvas" id="treeCanvas" aria-live="polite"></div>
+            </div>
+          </article>
+        </section>
+
+        <aside class="info-column">
+          <article class="definition-card" id="tanim">
+            <span class="material-symbols-outlined watermark" aria-hidden="true">data_object</span>
+            <h2>Biçimsel Tanım</h2>
+            <dl class="definition-list">
+              <div><dt>G</dt><dd>= (V, Σ, R, S)</dd></div>
+              <div><dt>V</dt><dd id="variableSet">= { S }</dd></div>
+              <div><dt>Σ</dt><dd id="terminalSet">= { a, b }</dd></div>
+              <div><dt>R</dt><dd>Editörde tanımlı</dd></div>
+              <div><dt>S</dt><dd id="startSymbol">= S</dd></div>
+            </dl>
+          </article>
+
+          <article class="panel generated-panel">
+            <div class="panel-header compact">
+              <h2>Oluşturulan Kelimeler</h2>
+              <span class="length-control">L ≤ <span id="maxLengthValue">5</span></span>
+            </div>
+            <div class="generated-actions">
+              <button class="secondary-button" id="showMoreWords" type="button">Daha Fazla Göster</button>
+            </div>
+            <div class="generated-list" id="generatedList" aria-live="polite"></div>
+          </article>
+
+          <article class="panel info-card" id="bilgi">
+            <div class="info-title">
+              <span class="material-symbols-outlined" aria-hidden="true">lightbulb</span>
+              <h2>CFG Nedir?</h2>
+            </div>
+            <p>Context Free Grammar, yani bağlamdan bağımsız gramer; sembollerden kelime üretmek için kullanılan üretim kuralları sistemidir. Programlama dillerinin sözdizimini, matematiksel desenleri ve biçimsel dilleri modellemek için kullanılır.</p>
+            <a class="learn-link" href="https://www.youtube.com/@ardataskinyazilim" target="_blank" rel="noreferrer">
+              YouTube kanalımda öğren
+              <span class="material-symbols-outlined" aria-hidden="true">open_in_new</span>
+            </a>
+          </article>
+        </aside>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    const defaultRules = [
+      { left: "S", rights: ["aSb", "ε"] }
+    ];
+
+    const colorsByLength = [
+      "#525657",
+      "#004ac6",
+      "#137333",
+      "#7c3aed",
+      "#ea580c",
+      "#be185d",
+      "#0f766e",
+      "#dc2626",
+      "#2563eb"
+    ];
+
+    const ruleList = document.getElementById("ruleList");
+    const ruleForm = document.getElementById("ruleForm");
+    const nonTerminalInput = document.getElementById("nonTerminalInput");
+    const productionInput = document.getElementById("productionInput");
+    const wordInput = document.getElementById("wordInput");
+    const validatorForm = document.getElementById("validatorForm");
+    const validationChip = document.getElementById("validationChip");
+    const derivationSteps = document.getElementById("derivationSteps");
+    const generatedList = document.getElementById("generatedList");
+    const showMoreWords = document.getElementById("showMoreWords");
+    const maxLengthValue = document.getElementById("maxLengthValue");
+    const variableSet = document.getElementById("variableSet");
+    const terminalSet = document.getElementById("terminalSet");
+    const startSymbol = document.getElementById("startSymbol");
+    const treeCanvas = document.getElementById("treeCanvas");
+    const newGrammarButton = document.getElementById("newGrammar");
+
+    let rules = cloneRules(defaultRules);
+    let generationResult = null;
+    let currentMaxLength = 5;
+
+    function cloneRules(source) {
+      return source.map((rule) => ({
+        left: rule.left,
+        rights: [...rule.rights]
+      }));
+    }
+
+    function normalizeProduction(value) {
+      const normalized = value.trim().replace(/->/g, "").replace(/λ/g, "ε");
+      if (!normalized) {
+        return [];
+      }
+
+      return normalized
+        .split("|")
+        .map((part) => part.trim().replace(/\s+/g, "").replace(/^eps$/i, "ε").replace(/^epsilon$/i, "ε").replace(/^E$/, "ε"))
+        .filter(Boolean);
+    }
+
+    function isVariable(symbol) {
+      return /^[A-ZÇĞİÖŞÜ]$/.test(symbol);
+    }
+
+    function isTerminal(symbol) {
+      return symbol !== "ε" && !isVariable(symbol);
+    }
+
+    function splitSymbols(text) {
+      if (text === "ε") {
+        return [];
+      }
+      return Array.from(text);
+    }
+
+    function getStartSymbol() {
+      return rules[0]?.left || "S";
+    }
+
+    function getVariables() {
+      const variables = new Set();
+      rules.forEach((rule) => {
+        variables.add(rule.left);
+        rule.rights.forEach((right) => {
+          splitSymbols(right).forEach((symbol) => {
+            if (isVariable(symbol)) {
+              variables.add(symbol);
+            }
+          });
+        });
+      });
+      return [...variables].sort();
+    }
+
+    function getTerminals() {
+      const terminals = new Set();
+      rules.forEach((rule) => {
+        rule.rights.forEach((right) => {
+          splitSymbols(right).forEach((symbol) => {
+            if (isTerminal(symbol)) {
+              terminals.add(symbol);
+            }
+          });
+        });
+      });
+      return [...terminals].sort();
+    }
+
+    function countTerminals(sentential) {
+      return Array.from(sentential).filter(isTerminal).length;
+    }
+
+    function containsVariable(sentential) {
+      return Array.from(sentential).some(isVariable);
+    }
+
+    function terminalProjection(sentential) {
+      return Array.from(sentential).filter(isTerminal).join("");
+    }
+
+    function makeNode(symbol) {
+      return {
+        id: globalThis.crypto?.randomUUID?.() || `${symbol}-${Math.random()}`,
+        symbol,
+        children: []
+      };
+    }
+
+    function cloneTree(node) {
+      return {
+        id: node.id,
+        symbol: node.symbol,
+        children: node.children.map(cloneTree)
+      };
+    }
+
+    function replaceNthLeaf(root, symbol, occurrenceIndex, right) {
+      let seen = 0;
+      const walk = (node) => {
+        if (node.children.length === 0 && node.symbol === symbol) {
+          if (seen === occurrenceIndex) {
+            node.children = right === "ε" ? [makeNode("ε")] : splitSymbols(right).map(makeNode);
+            return true;
+          }
+          seen += 1;
+        }
+
+        return node.children.some(walk);
+      };
+
+      walk(root);
+    }
+
+    function findVariablePositions(sentential) {
+      const positions = [];
+      Array.from(sentential).forEach((symbol, index) => {
+        if (isVariable(symbol)) {
+          const occurrenceIndex = Array.from(sentential.slice(0, index)).filter((item) => item === symbol).length;
+          positions.push({ symbol, index, occurrenceIndex });
+        }
+      });
+      return positions;
+    }
+
+    function generateWords(limit) {
+      const start = getStartSymbol();
+      const queue = [{
+        sentential: start,
+        steps: [{ word: start, note: "Başlangıç sembolü" }],
+        tree: makeNode(start),
+        depth: 0
+      }];
+      const complete = new Map();
+      const seen = new Set([start]);
+      const maxDepth = Math.max(12, limit * 4 + rules.length * 4);
+      const maxStates = 5000;
+
+      while (queue.length && seen.size < maxStates) {
+        const current = queue.shift();
+        const terminalCount = countTerminals(current.sentential);
+
+        if (!containsVariable(current.sentential)) {
+          const word = terminalProjection(current.sentential);
+          if (word.length <= limit && !complete.has(word)) {
+            complete.set(word, current);
+          }
+          continue;
+        }
+
+        if (terminalCount > limit || current.depth >= maxDepth) {
+          continue;
+        }
+
+        findVariablePositions(current.sentential).forEach((position) => {
+          const usableRules = rules.filter((rule) => rule.left === position.symbol);
+          usableRules.forEach((rule) => {
+            rule.rights.forEach((right) => {
+              const replacement = right === "ε" ? "" : right;
+              const nextSentential =
+                current.sentential.slice(0, position.index) +
+                replacement +
+                current.sentential.slice(position.index + 1);
+              const nextTerminalCount = countTerminals(nextSentential);
+              const nextVariableCount = Array.from(nextSentential).filter(isVariable).length;
+              const seenKey = `${nextSentential}|${current.depth + 1}`;
+
+              if (nextTerminalCount > limit || nextVariableCount > limit + 3 || seen.has(seenKey)) {
+                return;
+              }
+
+              const nextTree = cloneTree(current.tree);
+              replaceNthLeaf(nextTree, position.symbol, position.occurrenceIndex, right);
+              seen.add(seenKey);
+              queue.push({
+                sentential: nextSentential,
+                steps: [
+                  ...current.steps,
+                  {
+                    word: nextSentential || "ε",
+                    note: `${position.symbol} → ${right}`
+                  }
+                ],
+                tree: nextTree,
+                depth: current.depth + 1
+              });
+            });
+          });
+        });
+      }
+
+      const words = [...complete.keys()].sort((a, b) => a.length - b.length || a.localeCompare(b, "tr"));
+      return { words, complete };
+    }
+
+    function renderRules() {
+      ruleList.innerHTML = "";
+
+      if (!rules.length) {
+        const empty = document.createElement("div");
+        empty.className = "empty-state";
+        empty.textContent = "Henüz kural eklenmedi. İlk kural başlangıç sembolünü belirler.";
+        ruleList.appendChild(empty);
+        return;
+      }
+
+      rules.forEach((rule, index) => {
+        const row = document.createElement("div");
+        row.className = "rule-row";
+
+        const number = document.createElement("span");
+        number.className = "rule-number";
+        number.textContent = String(index + 1);
+
+        const expression = document.createElement("div");
+        expression.className = "rule-expression";
+        expression.innerHTML = `<strong>${escapeHtml(rule.left)}</strong><span class="material-symbols-outlined" aria-hidden="true">arrow_right_alt</span><span>${escapeHtml(rule.rights.join(" | "))}</span>`;
+
+        const deleteButton = document.createElement("button");
+        deleteButton.className = "delete-rule";
+        deleteButton.type = "button";
+        deleteButton.ariaLabel = `${rule.left} kuralını sil`;
+        deleteButton.innerHTML = '<span class="material-symbols-outlined" aria-hidden="true">delete</span>';
+        deleteButton.addEventListener("click", () => {
+          rules.splice(index, 1);
+          updateAll();
+        });
+
+        row.append(number, expression, deleteButton);
+        ruleList.appendChild(row);
+      });
+    }
+
+    function renderDefinition() {
+      const variables = getVariables();
+      const terminals = getTerminals();
+      variableSet.textContent = `= { ${variables.length ? variables.join(", ") : "∅"} }`;
+      terminalSet.textContent = `= { ${terminals.length ? terminals.join(", ") : "∅"} }`;
+      startSymbol.textContent = `= ${getStartSymbol()}`;
+    }
+
+    function renderGeneratedWords() {
+      const limit = currentMaxLength;
+      maxLengthValue.textContent = String(limit);
+      generationResult = generateWords(limit);
+      generatedList.innerHTML = "";
+
+      if (!generationResult.words.length) {
+        const empty = document.createElement("div");
+        empty.className = "empty-state";
+        empty.textContent = "Bu uzunluk sınırında üretilebilen kelime bulunamadı.";
+        generatedList.appendChild(empty);
+        return;
+      }
+
+      const grouped = generationResult.words.reduce((acc, word) => {
+        const length = word.length;
+        if (!acc.has(length)) {
+          acc.set(length, []);
+        }
+        acc.get(length).push(word);
+        return acc;
+      }, new Map());
+
+      [...grouped.entries()].sort((a, b) => a[0] - b[0]).forEach(([length, words]) => {
+        const group = document.createElement("section");
+        group.className = "generated-group";
+        group.style.setProperty("--group-color", colorsByLength[length % colorsByLength.length]);
+
+        const title = document.createElement("h3");
+        title.textContent = length === 0 ? "Uzunluk 0" : `Uzunluk ${length}`;
+        group.appendChild(title);
+
+        words.forEach((word) => {
+          const item = document.createElement("span");
+          item.className = "generated-word";
+          item.textContent = word || "ε";
+          group.appendChild(item);
+        });
+
+        generatedList.appendChild(group);
+      });
+    }
+
+    function renderValidation(result) {
+      const word = ["ε", "E"].includes(wordInput.value.trim()) ? "" : wordInput.value.trim();
+      const accepted = generationResult?.complete.has(word);
+      validationChip.className = `state-chip ${accepted ? "valid" : "invalid"}`;
+      validationChip.textContent = accepted ? "Geçerli" : "Geçersiz";
+
+      if (!accepted) {
+        derivationSteps.innerHTML = `<div class="empty-state">"${escapeHtml(word || "ε")}" kelimesi mevcut uzunluk sınırı ve kurallarla üretilemedi.</div>`;
+        treeCanvas.innerHTML = '<div class="empty-state">Geçerli bir türetme bulununca ağaç burada gösterilir.</div>';
+        return;
+      }
+
+      const matched = result || generationResult.complete.get(word);
+      derivationSteps.innerHTML = "";
+      matched.steps.forEach((step, index) => {
+        const row = document.createElement("div");
+        row.className = `step-row ${index === matched.steps.length - 1 ? "active" : ""}`;
+
+        const label = document.createElement("span");
+        label.className = `step-label ${index === matched.steps.length - 1 ? "step-final" : ""}`;
+        label.textContent = index === matched.steps.length - 1 ? "Sonuç" : `Adım ${index + 1}`;
+
+        const content = document.createElement("div");
+        content.innerHTML = `<span class="step-word ${index === matched.steps.length - 1 ? "step-final" : ""}">${escapeHtml(step.word || "ε")}</span><span class="step-note">${escapeHtml(step.note)}</span>`;
+
+        row.append(label, content);
+        derivationSteps.appendChild(row);
+      });
+      renderTree(matched.tree);
+    }
+
+    function renderTree(root) {
+      treeCanvas.innerHTML = "";
+      const wrapper = document.createElement("div");
+      wrapper.className = "tree";
+      const list = document.createElement("ul");
+      list.appendChild(renderTreeNode(root));
+      wrapper.appendChild(list);
+      treeCanvas.appendChild(wrapper);
+    }
+
+    function renderTreeNode(node) {
+      const item = document.createElement("li");
+      const label = document.createElement("span");
+      label.className = `tree-node ${isVariable(node.symbol) ? "variable" : ""} ${node.symbol === "ε" ? "epsilon" : ""}`;
+      label.textContent = node.symbol;
+      item.appendChild(label);
+
+      if (node.children.length) {
+        const children = document.createElement("ul");
+        node.children.forEach((child) => children.appendChild(renderTreeNode(child)));
+        item.appendChild(children);
+      }
+
+      return item;
+    }
+
+    function updateAll() {
+      renderRules();
+      renderDefinition();
+      renderGeneratedWords();
+      renderValidation();
+    }
+
+    function escapeHtml(value) {
+      return String(value)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
+    ruleForm.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const left = nonTerminalInput.value.trim().toUpperCase();
+      const rights = normalizeProduction(productionInput.value);
+
+      if (!isVariable(left) || !rights.length) {
+        nonTerminalInput.focus();
+        return;
+      }
+
+      const existing = rules.find((rule) => rule.left === left);
+      if (existing) {
+        existing.rights = [...new Set([...existing.rights, ...rights])];
+      } else {
+        rules.push({ left, rights });
+      }
+
+      nonTerminalInput.value = "";
+      productionInput.value = "";
+      nonTerminalInput.focus();
+      updateAll();
+    });
+
+    validatorForm.addEventListener("submit", (event) => {
+      event.preventDefault();
+      renderValidation();
+    });
+
+    wordInput.addEventListener("input", () => {
+      renderValidation();
+    });
+
+    showMoreWords.addEventListener("click", () => {
+      currentMaxLength += 5;
+      renderGeneratedWords();
+      renderValidation();
+    });
+
+    newGrammarButton.addEventListener("click", () => {
+      if (!confirm("Yeni gramer oluşturmak istediğinizden emin misiniz? Mevcut kurallar sıfırlanacak.")) {
+        return;
+      }
+
+      rules = cloneRules(defaultRules);
+      wordInput.value = "aabb";
+      currentMaxLength = 5;
+      updateAll();
+    });
+
+    updateAll();
+  </script>
+</body>
+</html>
