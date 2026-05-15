@@ -1129,6 +1129,7 @@
                 </div>
                 <button class="primary-button" type="submit">Doğrula</button>
               </form>
+              <p class="hint">Kelime üyeliği <strong>CYK algoritması</strong> ile denetlenir; sağdaki kelime listesindeki uzunluk sınırı yalnızca örnek üretimini sınırlar.</p>
 
               <div class="steps-box">
                 <h3>Türetme Adımları</h3>
@@ -1377,6 +1378,360 @@
       return positions;
     }
 
+    function flattenProductions(sourceRules) {
+      return sourceRules.flatMap((rule) =>
+        rule.rights.map((right) => ({
+          left: rule.left,
+          right: splitSymbols(right)
+        }))
+      );
+    }
+
+    function productionKey(production) {
+      return `${production.left}→${production.right.join("") || "ε"}`;
+    }
+
+    function dedupeProductions(productions) {
+      const seen = new Set();
+      return productions.filter((production) => {
+        const key = productionKey(production);
+        if (seen.has(key)) {
+          return false;
+        }
+        seen.add(key);
+        return true;
+      });
+    }
+
+    function collectGrammarSymbols(productions) {
+      const used = new Set();
+      productions.forEach((production) => {
+        used.add(production.left);
+        production.right.forEach((symbol) => {
+          if (isVariable(symbol)) {
+            used.add(symbol);
+          }
+        });
+      });
+      return used;
+    }
+
+    function freshNonTerminal(used) {
+      const alphabet = "ZYXWVUTRQPNMLKJIHGFEDCBAS";
+      for (const symbol of alphabet) {
+        if (!used.has(symbol)) {
+          used.add(symbol);
+          return symbol;
+        }
+      }
+      throw new Error("Yeterli yardımcı değişken kalmadı.");
+    }
+
+    function computeNullable(productions) {
+      const nullable = new Set();
+      let changed = true;
+      while (changed) {
+        changed = false;
+        productions.forEach((production) => {
+          if (nullable.has(production.left)) {
+            return;
+          }
+          if (production.right.length === 0 || production.right.every((symbol) => nullable.has(symbol))) {
+            nullable.add(production.left);
+            changed = true;
+          }
+        });
+      }
+      return nullable;
+    }
+
+    function expandWithoutNullables(right, nullable) {
+      const results = new Set();
+      const walk = (index, current) => {
+        if (index === right.length) {
+          results.add(current.join(""));
+          return;
+        }
+        const symbol = right[index];
+        if (isVariable(symbol) && nullable.has(symbol)) {
+          walk(index + 1, current);
+          walk(index + 1, [...current, symbol]);
+        } else {
+          walk(index + 1, [...current, symbol]);
+        }
+      };
+      walk(0, []);
+      return [...results].map((text) => splitSymbols(text));
+    }
+
+    function eliminateEpsilonProductions(productions, start, nullable) {
+      const next = [];
+      productions.forEach((production) => {
+        if (production.right.length === 0) {
+          return;
+        }
+        const variants = expandWithoutNullables(production.right, nullable);
+        variants.forEach((right) => {
+          if (right.length === 0) {
+            return;
+          }
+          next.push({ left: production.left, right });
+        });
+      });
+      if (nullable.has(start)) {
+        next.push({ left: start, right: [] });
+      }
+      return dedupeProductions(next);
+    }
+
+    function eliminateUnitProductions(productions) {
+      const unitMap = new Map();
+      const nonUnit = [];
+      productions.forEach((production) => {
+        if (production.right.length === 1 && isVariable(production.right[0])) {
+          const list = unitMap.get(production.left) || [];
+          list.push(production.right[0]);
+          unitMap.set(production.left, list);
+        } else {
+          nonUnit.push(production);
+        }
+      });
+
+      const variables = new Set(productions.map((production) => production.left));
+      const closureCache = new Map();
+      const closureOf = (symbol) => {
+        if (closureCache.has(symbol)) {
+          return closureCache.get(symbol);
+        }
+        const reachable = new Set();
+        const stack = [symbol];
+        while (stack.length) {
+          const current = stack.pop();
+          if (reachable.has(current)) {
+            continue;
+          }
+          reachable.add(current);
+          (unitMap.get(current) || []).forEach((target) => stack.push(target));
+        }
+        closureCache.set(symbol, reachable);
+        return reachable;
+      };
+
+      const next = [...nonUnit];
+      variables.forEach((variable) => {
+        closureOf(variable).forEach((reachable) => {
+          if (reachable === variable) {
+            return;
+          }
+          nonUnit.forEach((production) => {
+            if (production.left === reachable) {
+              next.push({ left: variable, right: [...production.right] });
+            }
+          });
+        });
+      });
+      return dedupeProductions(next);
+    }
+
+    function replaceMixedTerminals(productions, used) {
+      const terminalMap = new Map();
+      const next = [];
+
+      const terminalVariable = (terminal) => {
+        if (!terminalMap.has(terminal)) {
+          const fresh = freshNonTerminal(used);
+          terminalMap.set(terminal, fresh);
+          next.push({ left: fresh, right: [terminal] });
+        }
+        return terminalMap.get(terminal);
+      };
+
+      productions.forEach((production) => {
+        if (production.right.length <= 1) {
+          next.push(production);
+          return;
+        }
+        const mapped = production.right.map((symbol) => (isTerminal(symbol) ? terminalVariable(symbol) : symbol));
+        next.push({ left: production.left, right: mapped });
+      });
+
+      return dedupeProductions(next);
+    }
+
+    function breakLongProductions(productions, used) {
+      const next = [];
+      productions.forEach((production) => {
+        if (production.right.length <= 2) {
+          next.push(production);
+          return;
+        }
+        let [first, ...rest] = production.right;
+        let currentLeft = production.left;
+        while (rest.length > 1) {
+          const bridge = freshNonTerminal(used);
+          next.push({ left: currentLeft, right: [first, bridge] });
+          currentLeft = bridge;
+          first = rest.shift();
+        }
+        next.push({ left: currentLeft, right: [first, rest[0]] });
+      });
+      return dedupeProductions(next);
+    }
+
+    function convertToCNF(sourceRules, startSymbol) {
+      let productions = flattenProductions(sourceRules);
+      const used = collectGrammarSymbols(productions);
+      let start = startSymbol;
+
+      if (productions.some((production) => production.right.includes(start))) {
+        const augmented = freshNonTerminal(used);
+        productions = [{ left: augmented, right: [start] }, ...productions];
+        start = augmented;
+      }
+
+      const nullable = computeNullable(productions);
+      productions = eliminateEpsilonProductions(productions, start, nullable);
+      productions = eliminateUnitProductions(productions);
+      productions = replaceMixedTerminals(productions, used);
+      productions = breakLongProductions(productions, used);
+
+      return {
+        start,
+        productions,
+        displayStart: startSymbol
+      };
+    }
+
+    function cykRecognize(word, cnf) {
+      const { start, productions } = cnf;
+      const n = word.length;
+
+      if (n === 0) {
+        const accepted = productions.some((production) => production.left === start && production.right.length === 0);
+        return {
+          accepted,
+          table: [],
+          back: [],
+          steps: accepted ? [{ word: "ε", note: "CYK: boş kelime başlangıç sembolü ile üretilebilir." }] : []
+        };
+      }
+
+      const table = Array.from({ length: n }, () => Array.from({ length: n }, () => new Set()));
+      const back = Array.from({ length: n }, () => Array.from({ length: n }, () => []));
+
+      for (let i = 0; i < n; i += 1) {
+        const symbol = word[i];
+        productions.forEach((production) => {
+          if (production.right.length === 1 && production.right[0] === symbol) {
+            table[i][i].add(production.left);
+            back[i][i].push({ kind: "terminal", left: production.left, symbol });
+          }
+        });
+      }
+
+      for (let length = 2; length <= n; length += 1) {
+        for (let i = 0; i <= n - length; i += 1) {
+          const j = i + length - 1;
+          for (let split = i; split < j; split += 1) {
+            productions.forEach((production) => {
+              if (production.right.length !== 2) {
+                return;
+              }
+              const [leftSymbol, rightSymbol] = production.right;
+              if (!isVariable(leftSymbol) || !isVariable(rightSymbol)) {
+                return;
+              }
+              if (table[i][split].has(leftSymbol) && table[split + 1][j].has(rightSymbol)) {
+                table[i][j].add(production.left);
+                back[i][j].push({
+                  kind: "split",
+                  left: production.left,
+                  leftSymbol,
+                  rightSymbol,
+                  split
+                });
+              }
+            });
+          }
+        }
+      }
+
+      const accepted = table[0][n - 1].has(start);
+      return {
+        accepted,
+        table,
+        back,
+        steps: accepted ? buildCYKSteps(word, back, 0, n - 1, start) : []
+      };
+    }
+
+    function buildCYKSteps(word, back, i, j, symbol) {
+      const slice = word.slice(i, j + 1);
+      const entries = back[i][j].filter((entry) => entry.left === symbol);
+      const entry = entries[0];
+      if (!entry) {
+        return [{ word: slice, note: `${symbol} ⇒ ${slice || "ε"}` }];
+      }
+
+      if (entry.kind === "terminal") {
+        return [{ word: slice, note: `CYK: ${symbol} → ${entry.symbol}` }];
+      }
+
+      const leftSteps = buildCYKSteps(word, back, i, entry.split, entry.leftSymbol);
+      const rightSteps = buildCYKSteps(word, back, entry.split + 1, j, entry.rightSymbol);
+      return [
+        ...leftSteps,
+        ...rightSteps,
+        {
+          word: slice,
+          note: `CYK: ${symbol} → ${entry.leftSymbol}${entry.rightSymbol}  (${entry.leftSymbol} | ${word.slice(i, entry.split + 1)}, ${entry.rightSymbol} | ${word.slice(entry.split + 1, j + 1)})`
+        }
+      ];
+    }
+
+    function buildCYKTree(word, back, i, j, symbol) {
+      const entries = back[i][j].filter((entry) => entry.left === symbol);
+      const entry = entries[0];
+      const root = makeNode(symbol);
+      if (!entry) {
+        return root;
+      }
+      if (entry.kind === "terminal") {
+        root.children = [makeNode(entry.symbol)];
+        return root;
+      }
+      root.children = [
+        buildCYKTree(word, back, i, entry.split, entry.leftSymbol),
+        buildCYKTree(word, back, entry.split + 1, j, entry.rightSymbol)
+      ];
+      return root;
+    }
+
+    function recognizeWord(sourceRules, startSymbol, word) {
+      if (!sourceRules.length) {
+        return { accepted: false, steps: [], tree: null, method: "cyk" };
+      }
+      try {
+        const cnf = convertToCNF(sourceRules, startSymbol);
+        const result = cykRecognize(word, cnf);
+        return {
+          accepted: result.accepted,
+          steps: result.steps,
+          tree: result.accepted ? buildCYKTree(word, result.back, 0, Math.max(0, word.length - 1), cnf.start) : null,
+          method: "cyk",
+          cnf
+        };
+      } catch (error) {
+        return {
+          accepted: false,
+          steps: [],
+          tree: null,
+          method: "cyk",
+          error: error.message
+        };
+      }
+    }
+
     function generateWords(limit) {
       const start = getStartSymbol();
       const queue = [{
@@ -1536,35 +1891,53 @@
       });
     }
 
-    function renderValidation(result) {
-      const word = ["ε", "E"].includes(wordInput.value.trim()) ? "" : wordInput.value.trim();
-      const accepted = generationResult?.complete.has(word);
-      validationChip.className = `state-chip ${accepted ? "valid" : "invalid"}`;
-      validationChip.textContent = accepted ? "Geçerli" : "Geçersiz";
-
-      if (!accepted) {
-        derivationSteps.innerHTML = `<div class="empty-state">"${escapeHtml(word || "ε")}" kelimesi mevcut uzunluk sınırı ve kurallarla üretilemedi.</div>`;
-        treeCanvas.innerHTML = '<div class="empty-state">Geçerli bir türetme bulununca ağaç burada gösterilir.</div>';
-        return;
-      }
-
-      const matched = result || generationResult.complete.get(word);
+    function renderDerivationSteps(steps) {
       derivationSteps.innerHTML = "";
-      matched.steps.forEach((step, index) => {
+      steps.forEach((step, index) => {
         const row = document.createElement("div");
-        row.className = `step-row ${index === matched.steps.length - 1 ? "active" : ""}`;
+        row.className = `step-row ${index === steps.length - 1 ? "active" : ""}`;
 
         const label = document.createElement("span");
-        label.className = `step-label ${index === matched.steps.length - 1 ? "step-final" : ""}`;
-        label.textContent = index === matched.steps.length - 1 ? "Sonuç" : `Adım ${index + 1}`;
+        label.className = `step-label ${index === steps.length - 1 ? "step-final" : ""}`;
+        label.textContent = index === steps.length - 1 ? "Sonuç" : `Adım ${index + 1}`;
 
         const content = document.createElement("div");
-        content.innerHTML = `<span class="step-word ${index === matched.steps.length - 1 ? "step-final" : ""}">${escapeHtml(step.word || "ε")}</span><span class="step-note">${escapeHtml(step.note)}</span>`;
+        content.innerHTML = `<span class="step-word ${index === steps.length - 1 ? "step-final" : ""}">${escapeHtml(step.word || "ε")}</span><span class="step-note">${escapeHtml(step.note)}</span>`;
 
         row.append(label, content);
         derivationSteps.appendChild(row);
       });
-      renderTree(matched.tree);
+    }
+
+    function renderValidation() {
+      const word = ["ε", "E"].includes(wordInput.value.trim()) ? "" : wordInput.value.trim();
+      const cykResult = recognizeWord(rules, getStartSymbol(), word);
+      const accepted = cykResult.accepted;
+      validationChip.className = `state-chip ${accepted ? "valid" : "invalid"}`;
+      validationChip.textContent = accepted ? "Geçerli" : "Geçersiz";
+
+      if (!accepted) {
+        const reason = cykResult.error
+          ? cykResult.error
+          : `"${word || "ε"}" kelimesi CYK algoritması ile bu gramerde üretilemiyor.`;
+        derivationSteps.innerHTML = `<div class="empty-state">${escapeHtml(reason)}</div>`;
+        treeCanvas.innerHTML = '<div class="empty-state">Geçerli bir türetme bulununca ağaç burada gösterilir.</div>';
+        return;
+      }
+
+      const generatedMatch = generationResult?.complete.get(word);
+      if (generatedMatch) {
+        renderDerivationSteps(generatedMatch.steps);
+        renderTree(generatedMatch.tree);
+        return;
+      }
+
+      renderDerivationSteps(cykResult.steps);
+      if (cykResult.tree) {
+        renderTree(cykResult.tree);
+      } else {
+        treeCanvas.innerHTML = '<div class="empty-state">CYK ayrıştırma ağacı oluşturulamadı.</div>';
+      }
     }
 
     function renderTree(root) {
